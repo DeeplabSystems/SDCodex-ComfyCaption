@@ -1,0 +1,1333 @@
+{% extends "base.html" %}
+
+{% block title %}SDCodex - Captioning{% endblock %}
+
+{% block styles %}
+    <style>
+        /* Gallery Grid */
+        .gallery-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 20px;
+        }
+
+        .image-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s, background-color 0.3s;
+            position: relative;
+        }
+
+        .image-card:hover {
+            transform: scale(1.02);
+        }
+
+        .image-container {
+            width: 100%;
+            height: 180px;
+            background: #eee;
+            position: relative;
+        }
+
+        [data-theme="dark"] .image-container {
+            background: #1c1c1e;
+        }
+
+        .image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .card-content {
+            padding: 12px;
+            flex-grow: 1;
+        }
+
+        .card-filename {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            word-break: break-all;
+        }
+
+        .card-caption {
+            font-size: 13px;
+            color: var(--text);
+            margin: 0;
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            font-style: italic;
+        }
+
+        .card-caption.empty {
+            color: var(--text-secondary);
+            font-style: normal;
+        }
+
+        /* Progress Bar */
+        #progress-container {
+            margin-bottom: 24px;
+            display: none;
+        }
+
+        .progress-bar-custom {
+            width: 100%;
+            height: 8px;
+            background-color: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background-color: var(--success);
+            transition: width 0.3s ease;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background: var(--border);
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        /* Drop Zone */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: rgba(var(--card-bg), 0.5);
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--primary);
+            background-color: rgba(0, 113, 227, 0.05);
+            color: var(--primary);
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* Modal Styles */
+        .modal-overlay,
+        .gallery-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(5px);
+        }
+
+        .gallery-modal-content,
+        .modal-content-custom {
+            background: var(--card-bg, #fff);
+            width: 90%;
+            max-width: 1100px;
+            height: 85vh;
+            border-radius: 20px;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        [data-theme="dark"] .gallery-modal-content,
+        [data-theme="dark"] .modal-content-custom {
+            background: #1c1c1e;
+        }
+
+        @media (max-width: 800px) {
+            .gallery-modal-content,
+            .modal-content-custom {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 200px;
+                height: 95vh;
+            }
+        }
+
+        .modal-image-view {
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .modal-image-view img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .modal-info-panel {
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .modal-close-btn,
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 2001;
+            font-size: 24px;
+        }
+
+        .modal-close-btn:hover,
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        .modal-section-title,
+        .modal-caption-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--primary, #007bff);
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .image-card {
+            position: relative;
+            user-select: none;
+        }
+
+        .image-card.selected {
+            border: 2px solid var(--primary, #007bff);
+            box-shadow: 0 0 12px rgba(0, 123, 255, 0.4);
+        }
+
+        .card-checkbox-wrap {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            z-index: 10;
+        }
+
+        .card-checkbox-wrap .form-check-input {
+            width: 22px;
+            height: 22px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        /* Server folder browser (works in Docker/headless) */
+        #folder-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+        }
+        #folder-modal .folder-box {
+            background: var(--card-bg, #fff);
+            width: 90%;
+            max-width: 560px;
+            max-height: 80vh;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        [data-theme="dark"] #folder-modal .folder-box { background: #1c1c1e; }
+        #folder-modal .folder-dirs {
+            overflow-y: auto;
+            min-height: 200px;
+            max-height: 40vh;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        #folder-modal .folder-dir {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+        #folder-modal .folder-dir:hover {
+            background: rgba(0, 113, 227, 0.08);
+        }
+    </style>
+{% endblock %}
+
+
+{% block content %}
+    <div id="image-modal" class="modal-overlay">
+        <div class="modal-close-btn" onclick="closeModal()">×</div>
+        <div class="gallery-modal-content">
+            <div class="modal-image-view" style="position: relative;">
+                <button class="modal-nav prev" id="modal-prev" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); z-index: 2005; background: rgba(0,0,0,0.5); color: white; border: none; font-size: 28px; border-radius: 50%; width: 44px; height: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center;">‹</button>
+                <button class="modal-nav next" id="modal-next" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); z-index: 2005; background: rgba(0,0,0,0.5); color: white; border: none; font-size: 28px; border-radius: 50%; width: 44px; height: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center;">›</button>
+                <img id="modal-img" src="" alt="Full view">
+            </div>
+            <div class="modal-info-panel">
+                <h5 id="modal-filename" style="word-break: break-all; margin-bottom: 20px;">Filename</h5>
+                
+                <div class="modal-section-title">Caption</div>
+                <div id="modal-caption" style="font-size: 15px; margin-bottom: 15px; white-space: pre-wrap;"></div>
+                
+                <div class="modal-section-title">SD Prompt</div>
+                <div id="modal-sd-prompt" style="font-size: 13px; font-style: italic; margin-bottom: 15px;"></div>
+                
+                <div class="modal-section-title">SD Negative Prompt</div>
+                <div id="modal-sd-negative" style="font-size: 13px; font-style: italic; margin-bottom: 15px;"></div>
+                
+                <div class="modal-section-title">Generation Info</div>
+                <div id="modal-sd-setting" style="font-size: 12px; font-family: monospace; white-space: pre-wrap; margin-bottom: 20px;"></div>
+                
+                <div class="modal-action-buttons mt-auto d-flex flex-column gap-2">
+                    <button id="modal-caption-btn" class="btn btn-success"><i class="fas fa-magic me-1"></i>Caption this Image</button>
+                    <button id="modal-save-gallery-btn" class="btn btn-primary"><i class="fas fa-bookmark me-1"></i>Save to Gallery</button>
+                    <a id="modal-workflow-dl" href="#" class="btn btn-outline-secondary btn-sm" style="display: none; text-align: center;"><i class="fas fa-download me-1"></i>Download ComfyUI Workflow JSON</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Server-side folder browser: works in Docker/headless where the
+         native OS picker can't open. Paths are container-side. -->
+    <div id="folder-modal">
+        <div class="folder-box">
+            <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+                <h6 class="mb-0"><i class="fas fa-folder-open me-2"></i>Select dataset folder</h6>
+                <button class="btn btn-sm btn-outline-secondary" id="folder-modal-close">✕</button>
+            </div>
+            <div class="p-3">
+                <p class="small text-secondary mb-2" id="folder-modal-hint">Server-side paths — in Docker use <code>/data/…</code> mounts.</p>
+                <div class="input-group mb-2">
+                    <input class="form-control" type="text" id="folder-modal-path" placeholder="/data/downloads">
+                    <button class="btn btn-outline-secondary" id="folder-modal-go">Go</button>
+                    <button class="btn btn-outline-secondary" id="folder-modal-up" title="Parent folder">↑</button>
+                </div>
+                <div class="d-flex flex-wrap gap-1 mb-2" id="folder-modal-roots"></div>
+                <div class="folder-dirs" id="folder-modal-dirs"></div>
+            </div>
+            <div class="d-flex justify-content-end gap-2 p-3 border-top">
+                <button class="btn btn-secondary" id="folder-modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="folder-modal-select"><i class="fas fa-check me-1"></i>Use this folder</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="container-fluid mb-5" style="max-width: 1000px">
+        <div class="text-center mb-4">
+            <h1>Captioner</h1>
+            <p style="color: var(--text-secondary)">Local Batch Image Captioning using LM Studio</p>
+        </div>
+
+        <div class="section">
+            <div id="drop-zone" class="drop-zone">
+                <div style="font-size: 32px; margin-bottom: 10px;">📁</div>
+                Drag & drop a dataset folder or click to browse
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="folderPath" class="form-label fw-bold">Dataset Folder Path</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-folder text-primary"></i></span>
+                    <input class="form-control" type="text" id="folderPath" placeholder="C:\Users\Name\Pictures\Dataset">
+                    <button class="btn btn-secondary" id="browse-btn"><i class="fas fa-folder-open me-1"></i>Select Folder</button>
+                    <button class="btn btn-primary" id="load-btn"><i class="fas fa-sync-alt me-1"></i>Load</button>
+                </div>
+            </div>
+
+
+            <div class="form-group">
+                <label for="prompt">Caption Prompt</label>
+                <div class="input-group">
+                    <select class="form-select" id="prompt-select" style="max-width: 250px;">
+                        <option value="">-- Select a saved prompt --</option>
+                    </select>
+                    <input class="form-control" type="text" id="prompt" value="Caption this image" style="height: auto;">
+                    <button class="btn btn-outline-primary" id="save-prompt-btn" title="Save current prompt">Save</button>
+                    <button class="btn btn-outline-danger" id="delete-prompt-btn" title="Delete selected prompt"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="triggerTag">Trigger Tag (Optional - will be prepended as 'tag, caption')</label>
+                <input class="form-control" type="text" id="triggerTag" placeholder="e.g. ohwx" style="height: auto;">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="form-group">
+                    <div class="api-status-container">
+                        <label for="lmStudioUrl" style="margin-bottom: 0;">LM Studio API URL</label>
+                        <div id="api-status-dot" class="status-dot"></div>
+                    </div>
+                    <input class="form-control" type="text" id="lmStudioUrl" value="http://localhost:1234/v1" style="height: auto;">
+                </div>
+                <div class="form-group">
+                    <label for="model">Model Identifier</label>
+                    <select class="form-select" id="model" style="height: auto;">
+                        <option value="">(Connect to see models)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="button-group mb-3" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-top: 15px;">
+                <button class="btn btn-success py-2" id="caption-missing-btn">Caption Missing</button>
+                <button class="btn btn-warning py-2" style="color: white;" id="caption-all-btn">Update All</button>
+                <button class="btn btn-primary py-2" id="save-all-gallery-btn">Save all captioned to Gallery</button>
+                <button class="btn btn-info py-2" style="color: white;" id="save-selected-gallery-btn">Save selected to Gallery</button>
+            </div>
+        </div>
+
+        <div id="progress-container" class="section mb-4">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <div class="badge bg-secondary" id="status-badge" style="margin-bottom: 0;">Ready</div>
+                <button class="btn btn-danger btn-sm" id="abort-btn">Abort</button>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div id="status-text" style="font-size: 14px; font-weight: 500;">Waiting to start...</div>
+                <div id="remaining-time" style="font-size: 13px; color: var(--text-secondary); font-weight: 600;"></div>
+            </div>
+            <div class="progress-bar-custom">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+        </div>
+
+        <div class="section" id="gallery-section" style="display: none;">
+            <div class="gallery-header mb-4 p-3 rounded border bg-body-tertiary shadow-sm">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <h2 style="font-size: 20px; margin: 0;"><i class="fas fa-images text-primary me-2"></i>Image Gallery</h2>
+                        <div class="d-flex align-items-center gap-2">
+                            <label for="target-gallery-select" class="form-label mb-0 small text-secondary fw-semibold">Save To:</label>
+                            <select id="target-gallery-select" class="form-select form-select-sm" style="width: auto; min-width: 160px;">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="count-text" class="text-secondary small fw-semibold">0 images</div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2 border-top">
+                    <div class="d-flex align-items-center gap-2">
+                        <button id="select-all-btn" class="btn btn-sm btn-outline-secondary"><i class="fas fa-check-square me-1"></i>Select All</button>
+                        <button id="deselect-all-btn" class="btn btn-sm btn-outline-secondary"><i class="fas fa-square me-1"></i>Deselect All</button>
+                        <span id="selected-count-badge" class="badge bg-primary" style="font-size: 12px; padding: 6px 10px;">0 selected</span>
+                    </div>
+                    <div class="pagination d-flex align-items-center gap-2">
+                        <select id="items-per-page" class="form-select form-select-sm" style="width: auto;">
+                            <option value="20">20 / page</option>
+                            <option value="50">50 / page</option>
+                            <option value="100">100 / page</option>
+                        </select>
+                        <button id="prev-btn" class="btn btn-sm btn-secondary" disabled>Previous</button>
+                        <span id="page-info" class="small fw-bold px-2">Page 1 of 1</span>
+                        <button id="next-btn" class="btn btn-sm btn-secondary" disabled>Next</button>
+                    </div>
+                </div>
+            </div>
+            <div id="gallery-grid" class="gallery-grid">
+                <!-- Cards will be added here -->
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        let currentPage = 1;
+        let currentImages = []; // Stores images of the current page
+        let currentImageIndex = -1;
+        let itemsPerPage = 20;
+        let abortController = null;
+        let selectedImageFiles = new Set();
+
+        const formatTime = (ms) => {
+            if (ms <= 0) return '0s';
+            const seconds = Math.floor((ms / 1000) % 60);
+            const minutes = Math.floor((ms / (1000 * 60)) % 60);
+            const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
+
+            const parts = [];
+            if (hours > 0) parts.push(`${hours}h`);
+            if (minutes > 0) parts.push(`${minutes}m`);
+            if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+            return parts.join(' ');
+        };
+
+        // UI Element References
+        const dropZone = document.getElementById('drop-zone');
+        const folderPathInput = document.getElementById('folderPath');
+        const browseBtn = document.getElementById('browse-btn');
+        const loadBtn = document.getElementById('load-btn');
+        const captionMissingBtn = document.getElementById('caption-missing-btn');
+        const captionAllBtn = document.getElementById('caption-all-btn');
+        const progressContainer = document.getElementById('progress-container');
+        const progressFill = document.getElementById('progress-fill');
+        const statusText = document.getElementById('status-text');
+        const statusBadge = document.getElementById('status-badge');
+        const gallerySection = document.getElementById('gallery-section');
+        const galleryGrid = document.getElementById('gallery-grid');
+        const countText = document.getElementById('count-text');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const pageInfo = document.getElementById('page-info');
+        const abortBtn = document.getElementById('abort-btn');
+        const apiStatusDot = document.getElementById('api-status-dot');
+        const lmStudioUrlInput = document.getElementById('lmStudioUrl');
+        const triggerTagInput = document.getElementById('triggerTag');
+        const saveAllGalleryBtn = document.getElementById('save-all-gallery-btn');
+        const saveSelectedGalleryBtn = document.getElementById('save-selected-gallery-btn');
+        const itemsPerPageSelect = document.getElementById('items-per-page');
+
+        const targetGallerySelect = document.getElementById('target-gallery-select');
+        const createGalleryBtn = document.getElementById('create-gallery-btn');
+        const selectAllBtn = document.getElementById('select-all-btn');
+        const deselectAllBtn = document.getElementById('deselect-all-btn');
+        const selectedCountBadge = document.getElementById('selected-count-badge');
+
+        const modal = document.getElementById('image-modal');
+        const modalImg = document.getElementById('modal-img');
+        const modalFilename = document.getElementById('modal-filename');
+        const modalCaption = document.getElementById('modal-caption');
+        const modalPrev = document.getElementById('modal-prev');
+        const modalNext = document.getElementById('modal-next');
+        const modalCaptionBtn = document.getElementById('modal-caption-btn');
+        const modalSdPrompt = document.getElementById('modal-sd-prompt');
+        const modalSdNegative = document.getElementById('modal-sd-negative');
+        const modalSdSetting = document.getElementById('modal-sd-setting');
+        const modalWorkflowDl = document.getElementById('modal-workflow-dl');
+
+        const modelSelect = document.getElementById('model');
+
+        const updateSelectedBadge = () => {
+            selectedCountBadge.innerText = `${selectedImageFiles.size} selected`;
+        };
+
+        const toggleSelectImage = (filename, forceState) => {
+            if (forceState !== undefined) {
+                if (forceState) selectedImageFiles.add(filename);
+                else selectedImageFiles.delete(filename);
+            } else {
+                if (selectedImageFiles.has(filename)) selectedImageFiles.delete(filename);
+                else selectedImageFiles.add(filename);
+            }
+            updateSelectedBadge();
+            const card = document.getElementById(getCardId(filename));
+            if (card) {
+                if (selectedImageFiles.has(filename)) card.classList.add('selected');
+                else card.classList.remove('selected');
+                const chk = card.querySelector('.select-img-checkbox');
+                if (chk) chk.checked = selectedImageFiles.has(filename);
+            }
+        };
+
+        selectAllBtn.onclick = () => {
+            currentImages.forEach(img => selectedImageFiles.add(img.file));
+            currentImages.forEach(img => {
+                const card = document.getElementById(getCardId(img.file));
+                if (card) {
+                    card.classList.add('selected');
+                    const chk = card.querySelector('.select-img-checkbox');
+                    if (chk) chk.checked = true;
+                }
+            });
+            updateSelectedBadge();
+        };
+
+        deselectAllBtn.onclick = () => {
+            selectedImageFiles.clear();
+            currentImages.forEach(img => {
+                const card = document.getElementById(getCardId(img.file));
+                if (card) {
+                    card.classList.remove('selected');
+                    const chk = card.querySelector('.select-img-checkbox');
+                    if (chk) chk.checked = false;
+                }
+            });
+            updateSelectedBadge();
+        };
+
+        const loadGalleries = async () => {
+            try {
+                const res = await fetch('/api/galleries');
+                const galleries = await res.json();
+                targetGallerySelect.innerHTML = '';
+                const savedId = localStorage.getItem('targetGalleryId');
+                galleries.forEach(g => {
+                    const opt = document.createElement('option');
+                    opt.value = g.id;
+                    opt.innerText = `${g.name} (${g.count})`;
+                    targetGallerySelect.appendChild(opt);
+                });
+                if (savedId && Array.from(targetGallerySelect.options).some(o => o.value === savedId)) {
+                    targetGallerySelect.value = savedId;
+                }
+            } catch (e) {
+                console.error('Error loading galleries:', e);
+            }
+        };
+
+        targetGallerySelect.onchange = () => {
+            localStorage.setItem('targetGalleryId', targetGallerySelect.value);
+        };
+
+
+        const checkConnection = async () => {
+            const lmStudioUrl = lmStudioUrlInput.value;
+            console.log('Checking connection to:', lmStudioUrl);
+            apiStatusDot.className = 'status-dot'; // Reset
+
+            try {
+                const res = await fetch('/api/check-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lmStudioUrl })
+                });
+                const data = await res.json();
+                console.log('Connection check result:', data);
+
+                if (data.connected) {
+                    apiStatusDot.classList.add('connected');
+                    captionMissingBtn.disabled = false;
+                    captionAllBtn.disabled = false;
+                    modalCaptionBtn.disabled = false;
+
+                    // Populate models
+                    if (data.models && data.models.length > 0) {
+                        const previousValue = modelSelect.value;
+                        modelSelect.innerHTML = '';
+                        data.models.forEach(m => {
+                            const opt = document.createElement('option');
+                            opt.value = m.id;
+                            opt.innerText = m.id;
+                            modelSelect.appendChild(opt);
+                        });
+
+                        // Try to restore previous selection or select first
+                        if (Array.from(modelSelect.options).some(o => o.value === previousValue)) {
+                            modelSelect.value = previousValue;
+                        } else {
+                            modelSelect.selectedIndex = 0;
+                        }
+                    } else {
+                        modelSelect.innerHTML = '<option value="">(No models found)</option>';
+                    }
+                } else {
+                    apiStatusDot.classList.add('disconnected');
+                    captionMissingBtn.disabled = true;
+                    captionAllBtn.disabled = true;
+                    modalCaptionBtn.disabled = true;
+                    modelSelect.innerHTML = '<option value="">(Connect to see models)</option>';
+                    console.error('Connection failed:', data.error);
+                }
+            } catch (e) {
+                console.error('Fetch error during connection check:', e);
+                apiStatusDot.classList.add('disconnected');
+                captionMissingBtn.disabled = true;
+                captionAllBtn.disabled = true;
+                modalCaptionBtn.disabled = true;
+                modelSelect.innerHTML = '<option value="">(Connection Error)</option>';
+            }
+        };
+
+        lmStudioUrlInput.addEventListener('change', checkConnection);
+        lmStudioUrlInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') checkConnection();
+        });
+
+        const captionSingleImage = async () => {
+            const img = currentImages[currentImageIndex];
+            if (!img) return;
+
+            const originalBtnText = modalCaptionBtn.innerText;
+            modalCaptionBtn.innerText = 'Captioning...';
+            modalCaptionBtn.disabled = true;
+
+            try {
+                const res = await fetch('/api/caption-single', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        folderPath: folderPathInput.value,
+                        fileName: img.file,
+                        prompt: document.getElementById('prompt').value,
+                        lmStudioUrl: lmStudioUrlInput.value,
+                        model: document.getElementById('model').value,
+                        triggerTag: triggerTagInput.value
+                    })
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    img.caption = data.caption;
+                    img.sdPrompt = data.sdPrompt; 
+                    img.sdNegative = data.sdNegative;
+                    img.sdSetting = data.sdSetting;
+                    img.hasWorkflow = data.hasWorkflow;
+                    modalCaption.innerText = data.caption;
+                    modalSdPrompt.innerText = data.sdPrompt || 'No SD prompt available.';
+                    modalSdNegative.innerText = data.sdNegative || 'No negative prompt available.';
+                    modalSdSetting.innerText = data.sdSetting || 'No generation info available.';
+                    const visibleIndex = currentImages.findIndex(i => i.file === img.file);
+                    if (visibleIndex !== -1) {
+                        updateCard({
+                            file: img.file,
+                            image: img.image,
+                            caption: data.caption,
+                            sdPrompt: data.sdPrompt,
+                            sdNegative: data.sdNegative,
+                            sdSetting: data.sdSetting,
+                            hasWorkflow: data.hasWorkflow,
+                            status: 'success'
+                        }, visibleIndex);
+                    }
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to caption image'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                modalCaptionBtn.innerText = originalBtnText;
+                modalCaptionBtn.disabled = false;
+            }
+        };
+
+        modalCaptionBtn.onclick = captionSingleImage;
+
+        const modalSaveGalleryBtn = document.getElementById('modal-save-gallery-btn');
+        modalSaveGalleryBtn.onclick = async () => {
+            const img = currentImages[currentImageIndex];
+            if (!img) return;
+            
+            const originalText = modalSaveGalleryBtn.innerText;
+            modalSaveGalleryBtn.innerText = 'Saving...';
+            modalSaveGalleryBtn.disabled = true;
+            
+            try {
+                const res = await fetch('/api/gallery/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        folderPath: folderPathInput.value,
+                        fileName: img.file,
+                        caption: img.caption || '',
+                        sdPrompt: img.sdPrompt || '',
+                        sdNegative: img.sdNegative || '',
+                        sdSetting: img.sdSetting || '',
+                        galleryId: targetGallerySelect.value
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    modalSaveGalleryBtn.innerText = 'Saved!';
+                    loadGalleries();
+                    setTimeout(() => {
+                        modalSaveGalleryBtn.innerText = originalText;
+                        modalSaveGalleryBtn.disabled = false;
+                    }, 2000);
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to save to gallery'));
+                    modalSaveGalleryBtn.innerText = originalText;
+                    modalSaveGalleryBtn.disabled = false;
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+                modalSaveGalleryBtn.innerText = originalText;
+                modalSaveGalleryBtn.disabled = false;
+            }
+        };
+
+        const openModal = (index) => {
+            currentImageIndex = index;
+            const img = currentImages[index];
+            if (!img) return;
+
+            modalImg.src = img.image;
+            modalFilename.innerText = img.file;
+            modalCaption.innerText = img.caption || 'No caption available.';
+            modalSdPrompt.innerText = img.sdPrompt || 'No SD prompt available.';
+            modalSdNegative.innerText = img.sdNegative || 'No negative prompt available.';
+            modalSdSetting.innerText = img.sdSetting || 'No generation info available.';
+            
+            if (img.hasWorkflow) {
+                modalWorkflowDl.style.display = 'block';
+                modalWorkflowDl.href = `/api/workflow?folderPath=${encodeURIComponent(folderPathInput.value)}&file=${encodeURIComponent(img.file)}`;
+            } else {
+                modalWorkflowDl.style.display = 'none';
+                modalWorkflowDl.href = '#';
+            }
+            
+            modal.style.display = 'flex';
+
+            modalPrev.disabled = index <= 0;
+            modalNext.disabled = index >= currentImages.length - 1;
+
+            document.body.style.overflow = 'hidden'; // Prevent scroll
+        };
+
+        const closeModal = () => {
+            modal.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        };
+
+        modalPrev.onclick = (e) => { e.stopPropagation(); openModal(currentImageIndex - 1); };
+        modalNext.onclick = (e) => { e.stopPropagation(); openModal(currentImageIndex + 1); };
+        modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (modal.style.display === 'flex') {
+                if (e.key === 'Escape') closeModal();
+                if (e.key === 'ArrowLeft' && currentImageIndex > 0) openModal(currentImageIndex - 1);
+                if (e.key === 'ArrowRight' && currentImageIndex < currentImages.length - 1) openModal(currentImageIndex + 1);
+            }
+        });
+
+        const getCardId = (filename) => `card-${filename.replace(/[^a-z0-9]/gi, '_')}`;
+
+        const updateCard = (data, index) => {
+            let card = document.getElementById(getCardId(data.file));
+            if (!card) return;
+
+            const isSelected = selectedImageFiles.has(data.file);
+            card.className = `image-card ${isSelected ? 'selected' : ''}`;
+
+            card.onclick = () => openModal(index);
+
+            const safeFile = data.file.replace(/'/g, "\\'");
+            card.innerHTML = `
+                <div class="card-checkbox-wrap" onclick="event.stopPropagation(); toggleSelectImage('${safeFile}');">
+                    <input type="checkbox" class="form-check-input select-img-checkbox" ${isSelected ? 'checked' : ''}>
+                </div>
+                <div class="image-container">
+                    <img src="${data.image}" alt="${data.file}">
+                    ${data.status === 'started' ? '<div class="loading-overlay">Captioning...</div>' : ''}
+                </div>
+                <div class="card-content">
+                    <div class="card-filename">${data.file} ${data.status === 'started' ? '(Processing...)' : ''}</div>
+                    <p class="card-caption ${!data.caption ? 'empty' : ''}">${data.caption || 'No caption found'}</p>
+                </div>
+            `;
+
+            // Update the in-memory array for modal consistency
+            if (index !== undefined && currentImages[index]) {
+                if (data.caption !== undefined) currentImages[index].caption = data.caption;
+                if (data.sdPrompt !== undefined) currentImages[index].sdPrompt = data.sdPrompt;
+                if (data.sdNegative !== undefined) currentImages[index].sdNegative = data.sdNegative;
+                if (data.sdSetting !== undefined) currentImages[index].sdSetting = data.sdSetting;
+                if (data.hasWorkflow !== undefined) currentImages[index].hasWorkflow = data.hasWorkflow;
+                
+                // If modal is open for this image, update it live
+                if (modal.style.display === 'flex' && currentImageIndex === index) {
+                    if (data.caption !== undefined) modalCaption.innerText = data.caption || 'No caption available.';
+                    if (data.sdPrompt !== undefined) modalSdPrompt.innerText = data.sdPrompt || 'No SD prompt available.';
+                    if (data.sdNegative !== undefined) modalSdNegative.innerText = data.sdNegative || 'No negative prompt available.';
+                    if (data.sdSetting !== undefined) modalSdSetting.innerText = data.sdSetting || 'No generation info available.';
+                    if (data.hasWorkflow !== undefined) {
+                        if (data.hasWorkflow) {
+                            modalWorkflowDl.style.display = 'block';
+                            modalWorkflowDl.href = `/api/workflow?folderPath=${encodeURIComponent(folderPathInput.value)}&file=${encodeURIComponent(data.file)}`;
+                        } else {
+                            modalWorkflowDl.style.display = 'none';
+                            modalWorkflowDl.href = '#';
+                        }
+                    }
+                }
+            }
+        };
+
+        const loadFolder = async (page = 1) => {
+            const folderPath = folderPathInput.value;
+            if (!folderPath) return alert('Please select a folder');
+            
+            localStorage.setItem('captioningFolderPath', folderPath);
+
+            currentPage = page;
+            gallerySection.style.display = 'block';
+            galleryGrid.innerHTML = '<p>Loading gallery...</p>';
+
+            try {
+                const res = await fetch(`/api/images?folderPath=${encodeURIComponent(folderPath)}&page=${page}&limit=${itemsPerPage}`);
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.error || 'Failed to load images');
+                }
+
+                currentImages = data.images;
+                galleryGrid.innerHTML = '';
+                countText.innerText = `Total: ${data.total} images`;
+                pageInfo.innerText = `Page ${data.page} of ${data.totalPages}`;
+
+                prevBtn.disabled = data.page <= 1;
+                nextBtn.disabled = data.page >= data.totalPages;
+
+                data.images.forEach((img, index) => {
+                    const card = document.createElement('div');
+                    card.id = getCardId(img.file);
+                    card.className = 'image-card';
+                    galleryGrid.appendChild(card);
+
+                    updateCard({
+                        file: img.file,
+                        image: img.image,
+                        caption: img.caption,
+                        sdPrompt: img.sdPrompt,
+                        sdNegative: img.sdNegative,
+                        sdSetting: img.sdSetting,
+                        hasWorkflow: img.hasWorkflow,
+                        status: 'idle'
+                    }, index);
+                });
+                updateSelectedBadge();
+            } catch (err) {
+                console.error(err);
+                alert(`Error: ${err.message}`);
+                galleryGrid.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
+            }
+        };
+
+        prevBtn.onclick = () => loadFolder(currentPage - 1);
+        nextBtn.onclick = () => loadFolder(currentPage + 1);
+
+        browseBtn.onclick = async () => {
+            // Try the native server-side picker first (bare-metal). In
+            // Docker/headless it fails — fall back to the web folder browser.
+            try {
+                browseBtn.disabled = true;
+                const res = await fetch('/api/browse');
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.path) {
+                    folderPathInput.value = data.path;
+                    loadFolder(1);
+                    return;
+                }
+            } catch (err) {
+                console.warn('native picker failed, using web browser', err);
+            } finally {
+                browseBtn.disabled = false;
+            }
+            openFolderBrowser();
+        };
+
+        loadBtn.onclick = () => loadFolder(1);
+        dropZone.onclick = () => browseBtn.click();
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+        dropZone.ondragleave = () => { dropZone.classList.remove('dragover'); };
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            alert('Please use the "Select Folder" button for absolute paths.');
+        };
+
+        // ---- Web folder browser (Docker/headless friendly) ----
+        const folderModal = document.getElementById('folder-modal');
+        const folderModalPath = document.getElementById('folder-modal-path');
+        const folderModalDirs = document.getElementById('folder-modal-dirs');
+        const folderModalRoots = document.getElementById('folder-modal-roots');
+        let folderBrowserCwd = '/data';
+
+        const closeFolderBrowser = () => { folderModal.style.display = 'none'; };
+
+        const loadBrowserPath = async (path) => {
+            folderModalDirs.innerHTML = '<div class="p-3 text-secondary small">Loading…</div>';
+            try {
+                const res = await fetch(`/api/browse-folders?path=${encodeURIComponent(path)}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Cannot list folder');
+                folderBrowserCwd = data.cwd;
+                folderModalPath.value = data.cwd;
+                if (!data.dirs.length) {
+                    folderModalDirs.innerHTML = '<div class="p-3 text-secondary small">No subfolders — use this folder, or go up.</div>';
+                } else {
+                    folderModalDirs.innerHTML = data.dirs.map(d =>
+                        `<div class="folder-dir" data-path="${d.path.replace(/"/g, '&quot;')}">📁 ${d.name}</div>`
+                    ).join('');
+                    folderModalDirs.querySelectorAll('.folder-dir').forEach(el => {
+                        el.onclick = () => loadBrowserPath(el.dataset.path);
+                    });
+                }
+            } catch (err) {
+                folderModalDirs.innerHTML = `<div class="p-3 text-danger small">Error: ${err.message}</div>`;
+            }
+        };
+
+        const openFolderBrowser = async () => {
+            folderModal.style.display = 'flex';
+            const start = folderPathInput.value.trim() || '/data';
+            folderModalPath.value = start;
+            // Quick-pick roots (container mounts)
+            try {
+                const res = await fetch('/api/browse-roots');
+                const data = await res.json();
+                if (data.isDocker) {
+                    document.getElementById('folder-modal-hint').innerHTML =
+                        'Running in Docker — pick a <code>/data/…</code> mount (mirrors your host bind mounts).';
+                }
+                folderModalRoots.innerHTML = (data.roots || []).map(r =>
+                    `<button class="btn btn-sm btn-outline-secondary" data-root="${r}">${r}</button>`
+                ).join('');
+                folderModalRoots.querySelectorAll('button').forEach(b => {
+                    b.onclick = () => loadBrowserPath(b.dataset.root);
+                });
+            } catch {}
+            loadBrowserPath(start);
+        };
+
+        document.getElementById('folder-modal-close').onclick = closeFolderBrowser;
+        document.getElementById('folder-modal-cancel').onclick = closeFolderBrowser;
+        folderModal.onclick = (e) => { if (e.target === folderModal) closeFolderBrowser(); };
+        document.getElementById('folder-modal-go').onclick = () => loadBrowserPath(folderModalPath.value);
+        document.getElementById('folder-modal-up').onclick = async () => {
+            const p = folderModalPath.value.trim() || '/';
+            const parent = p.replace(/\/+$/, '').split('/').slice(0, -1).join('/') || '/';
+            loadBrowserPath(parent);
+        };
+        folderModalPath.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') loadBrowserPath(folderModalPath.value);
+        });
+        document.getElementById('folder-modal-select').onclick = () => {
+            folderPathInput.value = folderModalPath.value.trim() || folderBrowserCwd;
+            closeFolderBrowser();
+            loadFolder(1);
+        };
+
+        const startCaptioning = async (mode) => {
+            const folderPath = folderPathInput.value;
+            if (!folderPath) return alert('Please select a folder');
+
+            // Final connection check before starting
+            await checkConnection();
+            if (apiStatusDot.classList.contains('disconnected')) {
+                return alert('Cannot start captioning: LLM instance not connected.');
+            }
+
+            progressContainer.style.display = 'block';
+            gallerySection.style.display = 'block';
+            captionMissingBtn.disabled = true;
+            captionAllBtn.disabled = true;
+            abortBtn.style.display = 'block';
+
+            statusBadge.innerText = mode === 'missing' ? 'Captioning Missing' : 'Updating All';
+            statusBadge.style.background = mode === 'missing' ? 'var(--success)' : 'var(--warning)';
+            statusBadge.style.color = 'white';
+
+            const remainingTimeDisplay = document.getElementById('remaining-time');
+            remainingTimeDisplay.innerText = '';
+            let durations = [];
+            let lastCaptionStartTime = null;
+            const processStartTime = Date.now();
+
+            abortController = new AbortController();
+
+            try {
+                const response = await fetch('/api/caption', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        folderPath,
+                        mode,
+                        prompt: document.getElementById('prompt').value,
+                        lmStudioUrl: lmStudioUrlInput.value,
+                        model: document.getElementById('model').value,
+                        triggerTag: triggerTagInput.value
+                    }),
+                    signal: abortController.signal
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error || 'Server error');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        const trimmedLine = line.trim();
+                        if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
+
+                        try {
+                            const data = JSON.parse(trimmedLine.substring(6));
+
+                            if (data.status === 'started') {
+                                lastCaptionStartTime = Date.now();
+                            }
+
+                            if (data.status === 'started' || data.status === 'success') {
+                                const percent = (data.current / data.total) * 100;
+                                progressFill.style.width = percent + '%';
+                                statusText.innerText = `Processing ${data.current} of ${data.total}: ${data.file}`;
+
+                                // Find index in current visible page to update
+                                const visibleIndex = currentImages.findIndex(img => img.file === data.file);
+                                if (visibleIndex !== -1) {
+                                    updateCard(data, visibleIndex);
+                                }
+                            }
+
+                            if (data.status === 'success') {
+                                if (lastCaptionStartTime && !data.skipped) {
+                                    durations.push(Date.now() - lastCaptionStartTime);
+                                    if (durations.length > 10) durations.shift();
+                                    lastCaptionStartTime = null;
+                                }
+
+                                if (durations.length > 0) {
+                                    const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
+                                    const remaining = data.total - data.current;
+                                    const etr = avg * remaining;
+                                    remainingTimeDisplay.innerText = `Est. remaining: ${formatTime(etr)}`;
+                                }
+                            } else if (data.status === 'complete') {
+                                const totalTime = Date.now() - processStartTime;
+                                remainingTimeDisplay.innerText = '';
+                                statusText.innerText = `All images processed! Total time: ${formatTime(totalTime)}`;
+                                statusBadge.innerText = 'Complete';
+                                statusBadge.style.background = 'var(--success)';
+                                finishProcess();
+                            } else if (data.status === 'error') {
+                                console.error('Image error:', data.error);
+                            }
+                        } catch (e) {
+                            console.error('Parse error', e);
+                        }
+                    }
+                }
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    statusText.innerText = 'Process aborted by user.';
+                    statusBadge.innerText = 'Aborted';
+                    statusBadge.style.background = '#ff3b30';
+                } else {
+                    console.error(err);
+                    alert(`Error: ${err.message}`);
+                    statusText.innerText = `Error: ${err.message}`;
+                    statusBadge.innerText = 'Error';
+                    statusBadge.style.background = '#ff3b30';
+                }
+                finishProcess();
+            }
+        };
+
+        const finishProcess = () => {
+            captionMissingBtn.disabled = false;
+            captionAllBtn.disabled = false;
+            abortBtn.style.display = 'none';
+            abortController = null;
+            loadFolder(currentPage);
+        };
+
+        abortBtn.onclick = () => {
+            if (abortController) {
+                abortController.abort();
+            }
+        };
+
+        captionMissingBtn.onclick = () => startCaptioning('missing');
+        captionAllBtn.onclick = () => startCaptioning('all');
+
+        itemsPerPageSelect.onchange = () => {
+            itemsPerPage = parseInt(itemsPerPageSelect.value);
+            loadFolder(1);
+        };
+
+        saveAllGalleryBtn.onclick = async () => {
+            const folderPath = folderPathInput.value;
+            if (!folderPath) return alert('Please select a folder first');
+            
+            saveAllGalleryBtn.disabled = true;
+            const originalText = saveAllGalleryBtn.innerText;
+            saveAllGalleryBtn.innerText = 'Saving...';
+            
+            try {
+                const res = await fetch('/api/gallery/save-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        folderPath,
+                        galleryId: targetGallerySelect.value
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    saveAllGalleryBtn.innerText = `Saved ${data.saved_count} images!`;
+                    loadGalleries();
+                    setTimeout(() => {
+                        saveAllGalleryBtn.innerText = originalText;
+                        saveAllGalleryBtn.disabled = false;
+                    }, 3000);
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to save all to gallery'));
+                    saveAllGalleryBtn.innerText = originalText;
+                    saveAllGalleryBtn.disabled = false;
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+                saveAllGalleryBtn.innerText = originalText;
+                saveAllGalleryBtn.disabled = false;
+            }
+        };
+
+        saveSelectedGalleryBtn.onclick = async () => {
+            const folderPath = folderPathInput.value;
+            if (!folderPath) return alert('Please select a folder first');
+            if (selectedImageFiles.size === 0) return alert('Please select at least one image first');
+            
+            saveSelectedGalleryBtn.disabled = true;
+            const originalText = saveSelectedGalleryBtn.innerText;
+            saveSelectedGalleryBtn.innerText = 'Saving...';
+            
+            try {
+                const res = await fetch('/api/gallery/save-selected', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        folderPath,
+                        files: Array.from(selectedImageFiles),
+                        galleryId: targetGallerySelect.value
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    saveSelectedGalleryBtn.innerText = `Saved ${data.saved_count} selected!`;
+                    loadGalleries();
+                    setTimeout(() => {
+                        saveSelectedGalleryBtn.innerText = originalText;
+                        saveSelectedGalleryBtn.disabled = false;
+                    }, 3000);
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to save selected to gallery'));
+                    saveSelectedGalleryBtn.innerText = originalText;
+                    saveSelectedGalleryBtn.disabled = false;
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+                saveSelectedGalleryBtn.innerText = originalText;
+                saveSelectedGalleryBtn.disabled = false;
+            }
+        };
+
+        const promptSelect = document.getElementById('prompt-select');
+        const promptInput = document.getElementById('prompt');
+        const savePromptBtn = document.getElementById('save-prompt-btn');
+        const deletePromptBtn = document.getElementById('delete-prompt-btn');
+
+        const loadSavedPrompts = () => {
+            const savedPrompts = JSON.parse(localStorage.getItem('savedCaptionPrompts') || '[]');
+            promptSelect.innerHTML = '<option value="">-- Select a saved prompt --</option>';
+            savedPrompts.forEach((p, i) => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.innerText = p.length > 50 ? p.substring(0, 50) + '...' : p;
+                opt.dataset.index = i;
+                promptSelect.appendChild(opt);
+            });
+        };
+
+        savePromptBtn.onclick = () => {
+            const val = promptInput.value.trim();
+            if (!val) return;
+            let savedPrompts = JSON.parse(localStorage.getItem('savedCaptionPrompts') || '[]');
+            if (!savedPrompts.includes(val)) {
+                savedPrompts.push(val);
+                localStorage.setItem('savedCaptionPrompts', JSON.stringify(savedPrompts));
+                loadSavedPrompts();
+                promptSelect.value = val;
+            }
+        };
+
+        deletePromptBtn.onclick = () => {
+            if (promptSelect.value && promptSelect.value !== '') {
+                let savedPrompts = JSON.parse(localStorage.getItem('savedCaptionPrompts') || '[]');
+                savedPrompts = savedPrompts.filter(p => p !== promptSelect.value);
+                localStorage.setItem('savedCaptionPrompts', JSON.stringify(savedPrompts));
+                loadSavedPrompts();
+                promptInput.value = 'Caption this image';
+            }
+        };
+
+        promptSelect.onchange = () => {
+            if (promptSelect.value) {
+                promptInput.value = promptSelect.value;
+            }
+        };
+
+        // Initial check
+        window.onload = () => {
+            checkConnection();
+            loadSavedPrompts();
+            loadGalleries();
+
+            const savedPath = localStorage.getItem('captioningFolderPath');
+            if (savedPath) {
+                folderPathInput.value = savedPath;
+                loadFolder(1);
+            }
+        };
+
+    </script>
+{% endblock %}

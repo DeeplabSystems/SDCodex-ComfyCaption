@@ -1,0 +1,4 @@
+sd-prompt-reader
+piexif
+openai
+Pillow

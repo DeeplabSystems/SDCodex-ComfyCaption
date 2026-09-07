@@ -1,0 +1,29 @@
+{
+  "id": "comfy-caption",
+  "name": "ComfyUI Caption & Gallery",
+  "version": "1.0.0",
+  "description": "Integrated image gallery, auto-captioning with LLMs/JoyCaption, and ComfyUI custom workflow nodes.",
+  "author": "DeeplabSystems",
+  "repository": "https://github.com/DeeplabSystems/SDCodec-ComfyCaption",
+  "entrypoint": "plugin:init_plugin",
+  "nav_items": [
+    {
+      "label": "Captioning",
+      "url": "/captioning",
+      "icon": "fas fa-tags"
+    },
+    {
+      "label": "Gallery",
+      "url": "/gallery",
+      "icon": "fas fa-images"
+    }
+  ],
+  "volumes": [
+    {
+      "env_var": "GALLERY",
+      "host_path": "./app/static/saved_gallery",
+      "container_path": "/app/app/static/saved_gallery",
+      "description": "Directory for saved gallery images and thumbnails"
+    }
+  ]
+}

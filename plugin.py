@@ -1,6 +1,6 @@
 import os
 import sys
-from flask import render_template, redirect, url_for
+from flask import render_template
 from sqlalchemy import text
 
 plugin_dir = os.path.dirname(os.path.abspath(__file__))
@@ -8,6 +8,17 @@ if plugin_dir not in sys.path:
     sys.path.insert(0, plugin_dir)
 
 from models import Gallery, GalleryImage
+from api_gallery import gallery as gallery_bp
+
+gallery_bp.template_folder = os.path.join(plugin_dir, "templates")
+
+@gallery_bp.route("/captioning", endpoint="captioning")
+def captioning():
+    return render_template("captioning.html")
+
+@gallery_bp.route("/gallery", endpoint="gallery")
+def gallery_view():
+    return render_template("gallery.html")
 
 def init_plugin(app, db, plugin_info=None):
     """Initialize the ComfyUI Caption & Gallery plugin."""
@@ -19,18 +30,8 @@ def init_plugin(app, db, plugin_info=None):
     except Exception:
         pass
 
-    from api_gallery import gallery as gallery_bp
-    gallery_bp.template_folder = os.path.join(plugin_dir, "templates")
-
-    @gallery_bp.route("/captioning", endpoint="captioning")
-    def captioning():
-        return render_template("captioning.html")
-
-    @gallery_bp.route("/gallery", endpoint="gallery")
-    def gallery_view():
-        return render_template("gallery.html")
-
-    app.register_blueprint(gallery_bp)
+    if "gallery" not in app.blueprints:
+        app.register_blueprint(gallery_bp)
 
     # Initialize tables and migration checks
     with app.app_context():

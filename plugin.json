@@ -21,7 +21,7 @@
   "volumes": [
     {
       "env_var": "GALLERY",
-      "host_path": "./app/static/saved_gallery",
+      "host_path": ".gallery",
       "container_path": "/app/app/static/saved_gallery",
       "description": "Directory for saved gallery images and thumbnails"
     },

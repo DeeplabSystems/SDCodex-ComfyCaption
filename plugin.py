@@ -53,3 +53,23 @@ def init_plugin(app, db, plugin_info=None):
                 db.session.commit()
         except Exception as e:
             app.logger.warning("Default gallery init warning: %s", e)
+
+        # Install / sync ComfyUI custom nodes into custom-addons folder
+        custom_nodes_dirs = [
+            os.environ.get("COMFYUI_CUSTOM_NODES"),
+            os.environ.get("COMFY_CUSTOM_NODES"),
+            "/data/custom_nodes",
+            "/data/comfyui_custom_nodes",
+        ]
+        for cdir in custom_nodes_dirs:
+            if cdir and os.path.exists(cdir):
+                src_nodes = os.path.join(plugin_dir, "comfyui-sdcodex")
+                dest_nodes = os.path.join(cdir, "comfyui-sdcodex")
+                if os.path.exists(src_nodes):
+                    try:
+                        import shutil
+                        shutil.copytree(src_nodes, dest_nodes, dirs_exist_ok=True)
+                        app.logger.info("Installed/updated ComfyUI custom nodes to %s", dest_nodes)
+                    except Exception as err:
+                        app.logger.warning("Could not copy ComfyUI nodes to %s: %s", dest_nodes, err)
+                break

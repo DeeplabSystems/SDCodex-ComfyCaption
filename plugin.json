@@ -24,6 +24,12 @@
       "host_path": "./app/static/saved_gallery",
       "container_path": "/app/app/static/saved_gallery",
       "description": "Directory for saved gallery images and thumbnails"
+    },
+    {
+      "env_var": "COMFYUI_CUSTOM_NODES",
+      "host_path": "./comfyui/custom_nodes",
+      "container_path": "/data/custom_nodes",
+      "description": "ComfyUI custom-addons folder (where comfyui-sdcodex nodes will be installed)"
     }
   ]
 }

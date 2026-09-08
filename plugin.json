@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Integrated image gallery, auto-captioning with LLMs/JoyCaption, and ComfyUI custom workflow nodes.",
   "author": "DeeplabSystems",
-  "repository": "https://github.com/DeeplabSystems/SDCodec-ComfyCaption",
+  "repository": "https://github.com/DeeplabSystems/SDCodex-ComfyCaption",
   "entrypoint": "plugin:init_plugin",
   "nav_items": [
     {

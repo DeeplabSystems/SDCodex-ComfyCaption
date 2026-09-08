@@ -1,4 +1,4 @@
-# SDCodec-ComfyCaption
+# SDCodex-ComfyCaption
 
 SDCodex Plugin for Image Captioning, Saved Galleries, and ComfyUI Workflow Integration.
 
@@ -11,4 +11,4 @@ SDCodex Plugin for Image Captioning, Saved Galleries, and ComfyUI Workflow Integ
 - `GALLERY`: Host path for saved gallery images (defaults to `./app/static/saved_gallery`).
 
 ## Installation
-Add this repository (`DeeplabSystems/SDCodec-ComfyCaption`) in SDCodex Settings -> Plugins.
+Add this repository (`DeeplabSystems/SDCodex-ComfyCaption`) in SDCodex Settings -> Plugins.

@@ -255,20 +255,6 @@
             box-shadow: 0 0 12px rgba(0, 123, 255, 0.4);
         }
 
-        .card-checkbox-wrap {
-            position: absolute;
-            top: 8px;
-            left: 8px;
-            z-index: 10;
-        }
-
-        .card-checkbox-wrap .form-check-input {
-            width: 22px;
-            height: 22px;
-            cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-        }
-
         /* Server folder browser (works in Docker/headless) */
         #folder-modal {
             position: fixed;
@@ -337,7 +323,6 @@
                 
                 <div class="modal-action-buttons mt-auto d-flex flex-column gap-2">
                     <button id="modal-caption-btn" class="btn btn-success"><i class="fas fa-magic me-1"></i>Caption this Image</button>
-                    <button id="modal-save-gallery-btn" class="btn btn-primary"><i class="fas fa-bookmark me-1"></i>Save to Gallery</button>
                     <a id="modal-workflow-dl" href="#" class="btn btn-outline-secondary btn-sm" style="display: none; text-align: center;"><i class="fas fa-download me-1"></i>Download ComfyUI Workflow JSON</a>
                 </div>
             </div>
@@ -429,8 +414,6 @@
             <div class="button-group mb-3" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-top: 15px;">
                 <button class="btn btn-success py-2" id="caption-missing-btn">Caption Missing</button>
                 <button class="btn btn-warning py-2" style="color: white;" id="caption-all-btn">Update All</button>
-                <button class="btn btn-primary py-2" id="save-all-gallery-btn">Save all captioned to Gallery</button>
-                <button class="btn btn-info py-2" style="color: white;" id="save-selected-gallery-btn">Save selected to Gallery</button>
             </div>
         </div>
 
@@ -453,21 +436,10 @@
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
                     <div class="d-flex align-items-center gap-3">
                         <h2 style="font-size: 20px; margin: 0;"><i class="fas fa-images text-primary me-2"></i>Image Gallery</h2>
-                        <div class="d-flex align-items-center gap-2">
-                            <label for="target-gallery-select" class="form-label mb-0 small text-secondary fw-semibold">Save To:</label>
-                            <select id="target-gallery-select" class="form-select form-select-sm" style="width: auto; min-width: 160px;">
-                                <option value="">Loading...</option>
-                            </select>
-                        </div>
                     </div>
                     <div id="count-text" class="text-secondary small fw-semibold">0 images</div>
                 </div>
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2 border-top">
-                    <div class="d-flex align-items-center gap-2">
-                        <button id="select-all-btn" class="btn btn-sm btn-outline-secondary"><i class="fas fa-check-square me-1"></i>Select All</button>
-                        <button id="deselect-all-btn" class="btn btn-sm btn-outline-secondary"><i class="fas fa-square me-1"></i>Deselect All</button>
-                        <span id="selected-count-badge" class="badge bg-primary" style="font-size: 12px; padding: 6px 10px;">0 selected</span>
-                    </div>
                     <div class="pagination d-flex align-items-center gap-2">
                         <select id="items-per-page" class="form-select form-select-sm" style="width: auto;">
                             <option value="20">20 / page</option>
@@ -493,7 +465,6 @@
         let currentImageIndex = -1;
         let itemsPerPage = 20;
         let abortController = null;
-        let selectedImageFiles = new Set();
 
         const formatTime = (ms) => {
             if (ms <= 0) return '0s';
@@ -529,15 +500,7 @@
         const apiStatusDot = document.getElementById('api-status-dot');
         const lmStudioUrlInput = document.getElementById('lmStudioUrl');
         const triggerTagInput = document.getElementById('triggerTag');
-        const saveAllGalleryBtn = document.getElementById('save-all-gallery-btn');
-        const saveSelectedGalleryBtn = document.getElementById('save-selected-gallery-btn');
         const itemsPerPageSelect = document.getElementById('items-per-page');
-
-        const targetGallerySelect = document.getElementById('target-gallery-select');
-        const createGalleryBtn = document.getElementById('create-gallery-btn');
-        const selectAllBtn = document.getElementById('select-all-btn');
-        const deselectAllBtn = document.getElementById('deselect-all-btn');
-        const selectedCountBadge = document.getElementById('selected-count-badge');
 
         const modal = document.getElementById('image-modal');
         const modalImg = document.getElementById('modal-img');
@@ -552,79 +515,6 @@
         const modalWorkflowDl = document.getElementById('modal-workflow-dl');
 
         const modelSelect = document.getElementById('model');
-
-        const updateSelectedBadge = () => {
-            selectedCountBadge.innerText = `${selectedImageFiles.size} selected`;
-        };
-
-        const toggleSelectImage = (filename, forceState) => {
-            if (forceState !== undefined) {
-                if (forceState) selectedImageFiles.add(filename);
-                else selectedImageFiles.delete(filename);
-            } else {
-                if (selectedImageFiles.has(filename)) selectedImageFiles.delete(filename);
-                else selectedImageFiles.add(filename);
-            }
-            updateSelectedBadge();
-            const card = document.getElementById(getCardId(filename));
-            if (card) {
-                if (selectedImageFiles.has(filename)) card.classList.add('selected');
-                else card.classList.remove('selected');
-                const chk = card.querySelector('.select-img-checkbox');
-                if (chk) chk.checked = selectedImageFiles.has(filename);
-            }
-        };
-
-        selectAllBtn.onclick = () => {
-            currentImages.forEach(img => selectedImageFiles.add(img.file));
-            currentImages.forEach(img => {
-                const card = document.getElementById(getCardId(img.file));
-                if (card) {
-                    card.classList.add('selected');
-                    const chk = card.querySelector('.select-img-checkbox');
-                    if (chk) chk.checked = true;
-                }
-            });
-            updateSelectedBadge();
-        };
-
-        deselectAllBtn.onclick = () => {
-            selectedImageFiles.clear();
-            currentImages.forEach(img => {
-                const card = document.getElementById(getCardId(img.file));
-                if (card) {
-                    card.classList.remove('selected');
-                    const chk = card.querySelector('.select-img-checkbox');
-                    if (chk) chk.checked = false;
-                }
-            });
-            updateSelectedBadge();
-        };
-
-        const loadGalleries = async () => {
-            try {
-                const res = await fetch('/api/galleries');
-                const galleries = await res.json();
-                targetGallerySelect.innerHTML = '';
-                const savedId = localStorage.getItem('targetGalleryId');
-                galleries.forEach(g => {
-                    const opt = document.createElement('option');
-                    opt.value = g.id;
-                    opt.innerText = `${g.name} (${g.count})`;
-                    targetGallerySelect.appendChild(opt);
-                });
-                if (savedId && Array.from(targetGallerySelect.options).some(o => o.value === savedId)) {
-                    targetGallerySelect.value = savedId;
-                }
-            } catch (e) {
-                console.error('Error loading galleries:', e);
-            }
-        };
-
-        targetGallerySelect.onchange = () => {
-            localStorage.setItem('targetGalleryId', targetGallerySelect.value);
-        };
-
 
         const checkConnection = async () => {
             const lmStudioUrl = lmStudioUrlInput.value;
@@ -748,49 +638,6 @@
 
         modalCaptionBtn.onclick = captionSingleImage;
 
-        const modalSaveGalleryBtn = document.getElementById('modal-save-gallery-btn');
-        modalSaveGalleryBtn.onclick = async () => {
-            const img = currentImages[currentImageIndex];
-            if (!img) return;
-            
-            const originalText = modalSaveGalleryBtn.innerText;
-            modalSaveGalleryBtn.innerText = 'Saving...';
-            modalSaveGalleryBtn.disabled = true;
-            
-            try {
-                const res = await fetch('/api/gallery/save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        folderPath: folderPathInput.value,
-                        fileName: img.file,
-                        caption: img.caption || '',
-                        sdPrompt: img.sdPrompt || '',
-                        sdNegative: img.sdNegative || '',
-                        sdSetting: img.sdSetting || '',
-                        galleryId: targetGallerySelect.value
-                    })
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    modalSaveGalleryBtn.innerText = 'Saved!';
-                    loadGalleries();
-                    setTimeout(() => {
-                        modalSaveGalleryBtn.innerText = originalText;
-                        modalSaveGalleryBtn.disabled = false;
-                    }, 2000);
-                } else {
-                    alert('Error: ' + (data.error || 'Failed to save to gallery'));
-                    modalSaveGalleryBtn.innerText = originalText;
-                    modalSaveGalleryBtn.disabled = false;
-                }
-            } catch (err) {
-                alert('Error: ' + err.message);
-                modalSaveGalleryBtn.innerText = originalText;
-                modalSaveGalleryBtn.disabled = false;
-            }
-        };
-
         const openModal = (index) => {
             currentImageIndex = index;
             const img = currentImages[index];
@@ -843,16 +690,9 @@
             let card = document.getElementById(getCardId(data.file));
             if (!card) return;
 
-            const isSelected = selectedImageFiles.has(data.file);
-            card.className = `image-card ${isSelected ? 'selected' : ''}`;
-
             card.onclick = () => openModal(index);
 
-            const safeFile = data.file.replace(/'/g, "\\'");
             card.innerHTML = `
-                <div class="card-checkbox-wrap" onclick="event.stopPropagation(); toggleSelectImage('${safeFile}');">
-                    <input type="checkbox" class="form-check-input select-img-checkbox" ${isSelected ? 'checked' : ''}>
-                </div>
                 <div class="image-container">
                     <img src="${data.image}" alt="${data.file}">
                     ${data.status === 'started' ? '<div class="loading-overlay">Captioning...</div>' : ''}
@@ -933,7 +773,6 @@
                         status: 'idle'
                     }, index);
                 });
-                updateSelectedBadge();
             } catch (err) {
                 console.error(err);
                 alert(`Error: ${err.message}`);
@@ -1195,82 +1034,6 @@
             loadFolder(1);
         };
 
-        saveAllGalleryBtn.onclick = async () => {
-            const folderPath = folderPathInput.value;
-            if (!folderPath) return alert('Please select a folder first');
-            
-            saveAllGalleryBtn.disabled = true;
-            const originalText = saveAllGalleryBtn.innerText;
-            saveAllGalleryBtn.innerText = 'Saving...';
-            
-            try {
-                const res = await fetch('/api/gallery/save-all', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        folderPath,
-                        galleryId: targetGallerySelect.value
-                    })
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    saveAllGalleryBtn.innerText = `Saved ${data.saved_count} images!`;
-                    loadGalleries();
-                    setTimeout(() => {
-                        saveAllGalleryBtn.innerText = originalText;
-                        saveAllGalleryBtn.disabled = false;
-                    }, 3000);
-                } else {
-                    alert('Error: ' + (data.error || 'Failed to save all to gallery'));
-                    saveAllGalleryBtn.innerText = originalText;
-                    saveAllGalleryBtn.disabled = false;
-                }
-            } catch (err) {
-                alert('Error: ' + err.message);
-                saveAllGalleryBtn.innerText = originalText;
-                saveAllGalleryBtn.disabled = false;
-            }
-        };
-
-        saveSelectedGalleryBtn.onclick = async () => {
-            const folderPath = folderPathInput.value;
-            if (!folderPath) return alert('Please select a folder first');
-            if (selectedImageFiles.size === 0) return alert('Please select at least one image first');
-            
-            saveSelectedGalleryBtn.disabled = true;
-            const originalText = saveSelectedGalleryBtn.innerText;
-            saveSelectedGalleryBtn.innerText = 'Saving...';
-            
-            try {
-                const res = await fetch('/api/gallery/save-selected', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        folderPath,
-                        files: Array.from(selectedImageFiles),
-                        galleryId: targetGallerySelect.value
-                    })
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    saveSelectedGalleryBtn.innerText = `Saved ${data.saved_count} selected!`;
-                    loadGalleries();
-                    setTimeout(() => {
-                        saveSelectedGalleryBtn.innerText = originalText;
-                        saveSelectedGalleryBtn.disabled = false;
-                    }, 3000);
-                } else {
-                    alert('Error: ' + (data.error || 'Failed to save selected to gallery'));
-                    saveSelectedGalleryBtn.innerText = originalText;
-                    saveSelectedGalleryBtn.disabled = false;
-                }
-            } catch (err) {
-                alert('Error: ' + err.message);
-                saveSelectedGalleryBtn.innerText = originalText;
-                saveSelectedGalleryBtn.disabled = false;
-            }
-        };
-
         const promptSelect = document.getElementById('prompt-select');
         const promptInput = document.getElementById('prompt');
         const savePromptBtn = document.getElementById('save-prompt-btn');
@@ -1320,7 +1083,6 @@
         window.onload = () => {
             checkConnection();
             loadSavedPrompts();
-            loadGalleries();
 
             const savedPath = localStorage.getItem('captioningFolderPath');
             if (savedPath) {

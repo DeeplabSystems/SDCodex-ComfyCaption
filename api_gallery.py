@@ -448,6 +448,9 @@ def caption_single():
     image_path = os.path.join(folder_path, file_name)
     text_file_path = os.path.join(folder_path, os.path.splitext(file_name)[0] + '.txt')
 
+    print(f"[caption-single] folderPath={folder_path!r} fileName={file_name!r} "
+          f"lmStudioUrl={lm_studio_url!r} exists={os.path.exists(image_path) and os.path.isfile(image_path)}")
+
     if not is_safe_path(folder_path, image_path):
         return jsonify({"error": "Invalid file name"}), 400
 

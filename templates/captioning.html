@@ -578,6 +578,14 @@
         lmStudioUrlInput.addEventListener('keyup', (e) => {
             if (e.key === 'Enter') checkConnection();
         });
+        // Persist the URL so it doesn't reset on the gallery/captioning pages.
+        const saveLmStudioUrl = () => {
+            if (lmStudioUrlInput.value && lmStudioUrlInput.value.trim()) {
+                localStorage.setItem('captionLmStudioUrl', lmStudioUrlInput.value.trim());
+            }
+        };
+        lmStudioUrlInput.addEventListener('change', saveLmStudioUrl);
+        lmStudioUrlInput.addEventListener('blur', saveLmStudioUrl);
 
         const captionSingleImage = async () => {
             const img = currentImages[currentImageIndex];
@@ -1081,6 +1089,11 @@
 
         // Initial check
         window.onload = () => {
+            // Restore the LM Studio API URL the user last used (same localStorage
+            // key the gallery's "Caption this Image" reads) so it stops resetting
+            // to the localhost default on every visit.
+            const savedUrl = localStorage.getItem('captionLmStudioUrl');
+            if (savedUrl) lmStudioUrlInput.value = savedUrl;
             checkConnection();
             loadSavedPrompts();
 

@@ -69,6 +69,42 @@ def extract_comfy_workflow(image_path):
 
 gallery = Blueprint("gallery", __name__)
 
+
+def _docker_default_gateway():
+    """Best-effort host-bridge IP inside a container (fallback 172.17.0.1)."""
+    try:
+        with open("/proc/net/route") as f:
+            for line in f.readlines()[1:]:
+                parts = line.split()
+                if len(parts) >= 3 and parts[1] == "00000000" and parts[2] != "00000000":
+                    import socket
+                    import struct
+                    return socket.inet_ntoa(struct.pack("<I", int(parts[2], 16)))
+    except Exception:
+        pass
+    return "172.17.0.1"
+
+
+def reachable_lm_studio_url(url):
+    """When the server runs inside Docker, the container cannot reach the host
+    via ``localhost``/``127.0.0.1`` (that is the container itself). Rewrite such
+    URLs to the Docker default-gateway IP so LM Studio on the host is reached.
+    Outside Docker the URL is returned unchanged."""
+    if not url:
+        return url or "http://localhost:1234/v1"
+    try:
+        from urllib.parse import urlsplit, urlunsplit
+        parts = urlsplit(url)
+        if not parts.hostname or parts.hostname.lower() not in ("localhost", "127.0.0.1"):
+            return url
+        if not _in_docker():
+            return url
+        host = parts.hostname
+        netloc = parts.netloc.replace(host, _docker_default_gateway(), 1)
+        return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+    except Exception:
+        return url
+
 @gallery.route("/api/browse", methods=["GET"])
 def browse_folder():
     """API to browse folders using native filepickers.
@@ -177,7 +213,7 @@ def browse_roots():
 def check_connection():
     """API to check connection to LLM Studio"""
     data = request.json or {}
-    lm_studio_url = data.get("lmStudioUrl", "http://localhost:1234/v1")
+    lm_studio_url = reachable_lm_studio_url(data.get("lmStudioUrl", "http://localhost:1234/v1"))
     print(f"Checking connection to: {lm_studio_url}")
 
     try:
@@ -401,7 +437,7 @@ def caption_single():
     folder_path = data.get("folderPath")
     file_name = data.get("fileName")
     prompt = data.get("prompt", "Caption this image")
-    lm_studio_url = data.get("lmStudioUrl", "http://localhost:1234/v1")
+    lm_studio_url = reachable_lm_studio_url(data.get("lmStudioUrl", "http://localhost:1234/v1"))
     model = data.get("model", "model-identifier")
     trigger_tag = data.get("triggerTag", "")
 
@@ -511,7 +547,7 @@ def caption_batch():
     data = request.json or {}
     folder_path = data.get("folderPath")
     prompt = data.get("prompt", "Caption this image")
-    lm_studio_url = data.get("lmStudioUrl", "http://localhost:1234/v1")
+    lm_studio_url = reachable_lm_studio_url(data.get("lmStudioUrl", "http://localhost:1234/v1"))
     model = data.get("model", "model-identifier")
     mode = data.get("mode")
     trigger_tag = data.get("triggerTag", "")

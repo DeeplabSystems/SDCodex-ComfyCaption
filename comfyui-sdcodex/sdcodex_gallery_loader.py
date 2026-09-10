@@ -1,31 +1,48 @@
 import os
-import sqlite3
+
+# Disk-based gallery loader: images live in real folders and captions are read
+# from "<image>.txt" sidecar files (as written by the captioning plugin); SD
+# prompts / negative prompts are read from image metadata. No SDCodex database
+# is used.
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
-if os.path.exists(os.path.join(parent_dir, "app", "civitr.db")) or os.path.exists(os.path.join(parent_dir, "run.py")):
+if os.path.exists(os.path.join(parent_dir, "run.py")):
     default_sdcodex_root = parent_dir
 else:
     default_sdcodex_root = "/home/naked/dev/SDCodex"
 
 
-def _find_db(root):
-    """Locate the SDCodex SQLite database relative to an sdcodex_root.
+def _read_sidecar_caption(image_path):
+    base, _ = os.path.splitext(image_path)
+    txt_path = base + ".txt"
+    if os.path.isfile(txt_path):
+        try:
+            with open(txt_path, "r", encoding="utf-8", errors="ignore") as fh:
+                return fh.read().strip()
+        except Exception:
+            pass
+    return ""
 
-    Tries, in order:
-      <root>/db/sdcodex.db    (Docker compose bind mount at ./db)
-      <root>/app/civitr.db    (classic repo layout / bare-metal dev)
-      <root>/civitr.db        (repo root fallback)
-    """
-    candidates = [
-        os.path.join(root, "db", "sdcodex.db"),
-        os.path.join(root, "app", "civitr.db"),
-        os.path.join(root, "civitr.db"),
-    ]
-    for cand in candidates:
-        if os.path.exists(cand):
-            return cand
-    return candidates[0]  # report the first expected path in errors
+
+def _read_sd_prompt(image_path):
+    try:
+        from PIL import Image
+        with Image.open(image_path) as img:
+            meta = img.info.get("prompt") or img.info.get("parameters")
+            if meta and isinstance(meta, str) and "workflow" not in meta:
+                lines = [ln.strip() for ln in meta.split("\n") if ln.strip()]
+                if lines:
+                    positive = lines[0]
+                    negative = ""
+                    for ln in lines[1:]:
+                        if ln.lower().startswith("negative prompt:"):
+                            negative = ln[len("negative prompt:"):].strip()
+                            break
+                    return positive, negative
+    except Exception:
+        pass
+    return "", ""
 
 
 class SDCodexGalleryLoader:
@@ -65,37 +82,12 @@ class SDCodexGalleryLoader:
         if selected_image:
             if os.path.isabs(selected_image) and os.path.exists(selected_image):
                 img_path = selected_image
+            else:
+                candidate = os.path.join(default_sdcodex_root, "downloads", selected_image)
+                if os.path.isfile(candidate):
+                    img_path = candidate
 
-        if not img_path and selected_image:
-            root = default_sdcodex_root
-            db_path = _find_db(root)
-
-            if os.path.exists(db_path):
-                try:
-                    conn = sqlite3.connect(db_path)
-                    conn.row_factory = sqlite3.Row
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        "SELECT image_path, sd_prompt, sd_negative FROM gallery_image WHERE file_name = ? LIMIT 1",
-                        (os.path.basename(selected_image),)
-                    )
-                    row = cursor.fetchone()
-                    conn.close()
-                    if row:
-                        img_rel = row["image_path"]
-                        if img_rel.startswith("/static/"):
-                            img_rel = img_rel[8:]
-                        elif img_rel.startswith("static/"):
-                            img_rel = img_rel[7:]
-                        img_path = os.path.join(root, "app", "static", img_rel)
-                        if not out_sd_prompt:
-                            out_sd_prompt = row["sd_prompt"] or ""
-                        if not out_sd_negative:
-                            out_sd_negative = row["sd_negative"] or ""
-                except Exception as e:
-                    print(f"Error loading image path from database: {e}")
-
-        if img_path and os.path.exists(img_path):
+        if img_path and os.path.isfile(img_path):
             try:
                 img = Image.open(img_path)
                 img = ImageOps.exif_transpose(img)
@@ -104,20 +96,14 @@ class SDCodexGalleryLoader:
                 np_img = np.array(img_rgb).astype(np.float32) / 255.0
                 out_image = torch.from_numpy(np_img)[None,]
 
-                if not out_sd_prompt:
-                    if "workflow" not in img.info and "prompt" in img.info:
-                        try:
-                            metadata = img.info["prompt"]
-                            if isinstance(metadata, str):
-                                lines = [line.strip() for line in metadata.split("\n") if line.strip()]
-                                if lines:
-                                    out_sd_prompt = lines[0]
-                                    for line in lines[1:]:
-                                        if line.lower().startswith("negative prompt:"):
-                                            out_sd_negative = line[16:].strip()
-                                            break
-                        except Exception:
-                            pass
+                if not final_caption:
+                    final_caption = _read_sidecar_caption(img_path)
+                if not out_sd_prompt or not out_sd_negative:
+                    sd_pos, sd_neg = _read_sd_prompt(img_path)
+                    if not out_sd_prompt:
+                        out_sd_prompt = sd_pos
+                    if not out_sd_negative:
+                        out_sd_negative = sd_neg
             except Exception as e:
                 print(f"Error loading image file {img_path}: {e}")
 

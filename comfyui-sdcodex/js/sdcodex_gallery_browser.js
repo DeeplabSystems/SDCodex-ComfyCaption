@@ -174,16 +174,9 @@ app.registerExtension({
         };
 
         const loadGalleries = async () => {
-            const rootPath = getRootPath();
-            const url = `/sdcodex/galleries?sdcodex_root=${encodeURIComponent(rootPath)}`;
-            try {
-                const response = await fetch(url);
-                if (!response.ok) return;
-                const data = await response.json();
-                galleriesCache = data.galleries || [];
-            } catch (err) {
-                console.error("Error loading galleries:", err);
-            }
+            // Named galleries were removed with the database; the node now
+            // browses disk folders directly, so there is nothing to list.
+            galleriesCache = [];
         };
 
         const renderGallerySelect = () => {
@@ -222,7 +215,8 @@ app.registerExtension({
             const rootPath = getRootPath();
             const gallery = gallerySelect.value || (galleryWidget ? galleryWidget.value : "") || "";
 
-            gallerySelectRow.style.display = mode === "Saved Gallery" ? "flex" : "none";
+            // No named galleries exist anymore (DB removed); hide the dropdown.
+            gallerySelectRow.style.display = "none";
 
             grid.innerHTML = `<div style="grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 11px;">Loading...</div>`;
 

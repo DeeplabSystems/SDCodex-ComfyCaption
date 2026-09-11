@@ -12,6 +12,24 @@ SDCodex Plugin for Image Captioning and ComfyUI Workflow Integration.
 > "save to gallery" flow. The legacy `gallery` table/models, `/api/galleries`,
 > `/api/gallery/save*` and the Saved Gallery UI were removed in v2.0.0.
 
+## ComfyUI Nodes (`comfyui-sdcodex`)
+Installed into your ComfyUI `custom_nodes` folder under `comfyui-sdcodex/`:
+
+- **SDCodex Gallery Browser** — folder-only image browser. Set `folder_path` and
+  browse the grid; clicking an image (and the Runner) pushes the selection into
+  every **SDCodex Gallery Loader** node in the graph. Reads captions from
+  `<image>.txt` sidecars and SD prompts from image metadata, all from disk.
+- **SDCodex Gallery Loader** — turns the current selection into `IMAGE` /
+  `STRING` (`caption`, `sd_prompt`, `sd_negative`) outputs for your generation
+  workflow.
+- **SDCodex Gallery Runner** — batch/loop runner. Wire the Browser's
+  `selected_image` into the Runner's `current_image` input, then press **▶ Start**:
+  it runs the workflow on the currently selected image, advances to the next
+  image in the folder, and keeps going until **■ Stop** or the limits below:
+  - `executions_per_image` — how many times to run the workflow on each image.
+  - `max_images` — how many images to cycle through before auto-stopping
+    (`0` / blank = until the end of the list).
+
 ## LM Studio URL resolution inside Docker
 The plugin runs server-side inside the `sdcodex` container, so `http://localhost:1234/v1`
 would point at the container itself, not the host where LM Studio runs. To fix this,

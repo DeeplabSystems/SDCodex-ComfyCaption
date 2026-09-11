@@ -3,10 +3,10 @@ import mimetypes
 from aiohttp import web
 from server import PromptServer
 
-# The gallery is fully disk-based: images live in real folders and captions are
-# read from "<image>.txt" sidecar files (as written by the captioning plugin).
-# SD prompts / negative prompts / generation info are read from image metadata.
-# No SDCodex database is used.
+# The gallery is fully disk-based and folder-only: images live in real folders
+# and captions are read from "<image>.txt" sidecar files (as written by the
+# captioning plugin). SD prompts / negative prompts are read from image
+# metadata. No SDCodex database is used and there is no "Saved Gallery" mode.
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -16,22 +16,6 @@ else:
     default_sdcodex_root = "/home/naked/dev/SDCodex"
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".avif"}
-
-
-def _resolve_root(root_param):
-    """Sanitize an sdcodex_root parameter.
-
-    A stale workflow may persist an image file path (e.g. an old
-    .../static/saved_gallery/<file>.jpeg) in the sdcodex_root widget, which
-    then gets used as the base for folder lookup. Only accept values that are
-    real directories; anything else falls back to the detected default root.
-    """
-    root = (root_param or "").strip()
-    if root:
-        root = os.path.normpath(root)
-        if not os.path.isdir(root):
-            root = ""
-    return root or default_sdcodex_root
 
 
 def _read_sidecar_caption(image_path):
@@ -80,45 +64,41 @@ def _list_images(folder_path):
     )
 
 
+def _resolve_folder(params):
+    """Resolve the folder to browse from query params (folder-only)."""
+    folder_path = params.get("folder_path", "").strip()
+    if not folder_path or not os.path.isdir(folder_path):
+        return None
+    return folder_path
+
+
 @PromptServer.instance.routes.get("/sdcodex/images")
 async def get_sdcodex_images(request):
     params = request.query
-    mode = params.get("mode", "Folder Path")
-    folder_path = params.get("folder_path", "").strip()
-    sdcodex_root = _resolve_root(params.get("sdcodex_root", ""))
+    folder_path = _resolve_folder(params)
     page = int(params.get("page", 1))
     limit = int(params.get("limit", 24))
 
     page = max(1, page)
     limit = max(1, limit)
 
-    results = []
-    total = 0
-    total_pages = 1
+    if not folder_path:
+        return web.json_response(
+            {"error": "folder_path must be a real directory"},
+            status=400,
+        )
 
     try:
-        # Both modes browse a real folder on disk. "Saved Gallery" historically
-        # read from the (now removed) database; it now falls back to folder_path
-        # (or a gallery root dir under sdcodex_root) like "Folder Path".
-        base_dir = folder_path
-        if not base_dir or not os.path.isdir(base_dir):
-            base_dir = os.path.join(sdcodex_root, "downloads")
-
-        if not os.path.isdir(base_dir):
-            return web.json_response(
-                {"error": f"Folder does not exist or is not a directory: {base_dir}"},
-                status=400,
-            )
-
-        image_files = _list_images(base_dir)
+        image_files = _list_images(folder_path)
         total = len(image_files)
         total_pages = (total + limit - 1) // limit if total > 0 else 1
 
         start_index = (page - 1) * limit
         page_files = image_files[start_index: start_index + limit]
 
+        results = []
         for file in page_files:
-            img_abs_path = os.path.join(base_dir, file)
+            img_abs_path = os.path.join(folder_path, file)
             caption = _read_sidecar_caption(img_abs_path)
             sd_pos, sd_neg = _read_sd_prompt(img_abs_path)
             results.append({
@@ -136,7 +116,6 @@ async def get_sdcodex_images(request):
             "totalPages": total_pages,
             "limit": limit,
         })
-
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
@@ -173,10 +152,7 @@ class SDCodexGalleryBrowser:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "mode": (["Folder Path", "Saved Gallery"], {"default": "Folder Path"}),
-                "gallery": ("STRING", {"default": ""}),
                 "folder_path": ("STRING", {"default": ""}),
-                "sdcodex_root": ("STRING", {"default": ""}),
                 "selected_image": ("STRING", {"default": ""}),
                 "caption": ("STRING", {"default": "", "multiline": True}),
                 "sd_prompt": ("STRING", {"default": "", "multiline": True}),
@@ -186,10 +162,11 @@ class SDCodexGalleryBrowser:
 
     RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "IMAGE")
     RETURN_NAMES = ("selected_image", "caption", "sd_prompt", "sd_negative", "image")
+    OUTPUT_NODE = True
     FUNCTION = "execute"
     CATEGORY = "SDCodex"
 
-    def execute(self, mode="Folder Path", gallery="", folder_path="", sdcodex_root="", selected_image="", caption="", sd_prompt="", sd_negative=""):
+    def execute(self, folder_path="", selected_image="", caption="", sd_prompt="", sd_negative=""):
         import torch
         import numpy as np
         from PIL import Image, ImageOps
@@ -199,18 +176,13 @@ class SDCodexGalleryBrowser:
         out_sd_negative = sd_negative or ""
 
         img_path = None
-        root = _resolve_root(sdcodex_root)
-
         if selected_image:
-            if os.path.isabs(selected_image) and os.path.exists(selected_image):
+            if os.path.isabs(selected_image) and os.path.isfile(selected_image):
                 img_path = selected_image
-            elif folder_path and os.path.isdir(folder_path):
+            elif folder_path and os.path.isdir(folder_path) and os.path.isfile(
+                os.path.join(folder_path, selected_image)
+            ):
                 img_path = os.path.join(folder_path, selected_image)
-            else:
-                # Fall back to a gallery root under sdcodex_root.
-                candidate = os.path.join(root, "downloads", selected_image)
-                if os.path.isfile(candidate):
-                    img_path = candidate
 
         if img_path and os.path.isfile(img_path):
             try:
@@ -222,9 +194,7 @@ class SDCodexGalleryBrowser:
                 out_image = torch.from_numpy(np_img)[None,]
 
                 if not caption.strip():
-                    sidecar = _read_sidecar_caption(img_path)
-                    if sidecar:
-                        caption = sidecar
+                    caption = _read_sidecar_caption(img_path)
                 if not out_sd_prompt or not out_sd_negative:
                     sd_pos, sd_neg = _read_sd_prompt(img_path)
                     if not out_sd_prompt:

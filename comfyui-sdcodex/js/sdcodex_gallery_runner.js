@@ -17,6 +17,59 @@ import { app } from "../../scripts/app.js";
 // nodes, serializes the current graph, queues it via the ComfyUI API, and
 // waits for that exact prompt_id to finish before advancing.
 
+const style = document.createElement("style");
+style.innerHTML = `
+    .sdcodex-runner-container {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        background: #1e1e24;
+        border: 1px solid #3e3e4a;
+        border-radius: 6px;
+        padding: 8px;
+        font-family: Arial, sans-serif;
+        color: #eee;
+        width: 100%;
+        box-sizing: border-box;
+        margin: 5px 0;
+    }
+    .sdcodex-runner-buttons {
+        display: flex;
+        gap: 6px;
+    }
+    .sdcodex-runner-btn {
+        flex: 1;
+        background: #2e7d32;
+        border: 1px solid #4caf50;
+        color: #fff;
+        border-radius: 4px;
+        padding: 6px 10px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+        transition: background 0.15s, opacity 0.2s;
+    }
+    .sdcodex-runner-btn.stop {
+        background: #b71c1c;
+        border: 1px solid #e57373;
+    }
+    .sdcodex-runner-btn.running {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .sdcodex-runner-status {
+        background: #101014;
+        border: 1px solid #2a2a30;
+        border-radius: 4px;
+        padding: 6px 8px;
+        font-size: 11px;
+        color: #888;
+        min-height: 16px;
+        word-break: break-all;
+    }
+`;
+document.head.appendChild(style);
+
 app.registerExtension({
     name: "SDCodex.GalleryRunner",
     async nodeCreated(node) {
@@ -27,9 +80,48 @@ app.registerExtension({
         let stopRequested = false;
 
         const getWidget = (n, name) => n?.widgets?.find(w => w.name === name);
+        const readWidgetStr = (n, name) => {
+            const w = getWidget(n, name);
+            return w ? String(w.value ?? "") : "";
+        };
 
+        // ---------- DOM controls ----------
+        const container = document.createElement("div");
+        container.className = "sdcodex-runner-container";
+
+        const buttons = document.createElement("div");
+        buttons.className = "sdcodex-runner-buttons";
+
+        const startBtn = document.createElement("button");
+        startBtn.className = "sdcodex-runner-btn";
+        startBtn.textContent = "▶ Start";
+        startBtn.addEventListener("click", () => runLoop());
+
+        const stopBtn = document.createElement("button");
+        stopBtn.className = "sdcodex-runner-btn stop";
+        stopBtn.textContent = "■ Stop";
+        stopBtn.addEventListener("click", () => stopLoop());
+
+        buttons.appendChild(startBtn);
+        buttons.appendChild(stopBtn);
+
+        const statusEl = document.createElement("div");
+        statusEl.className = "sdcodex-runner-status";
+        statusEl.textContent = "Idle";
+
+        container.appendChild(buttons);
+        container.appendChild(statusEl);
+
+        const domWidget = node.addDOMWidget("sdcodex_runner_widget", "runner_controls", container);
+        domWidget.serializeValue = () => undefined;
+
+        const setStatus = (text) => {
+            statusEl.textContent = text;
+            if (node.setDirtyCanvas) node.setDirtyCanvas(true, true);
+        };
+
+        // ---------- ComfyUI orchestration ----------
         const findBrowserNode = () => {
-            // Prefer the node wired into `current_image`.
             const inp = node.inputs?.find(i => i.name === "current_image");
             if (inp && inp.link !== null && inp.link !== undefined) {
                 for (const n of app.graph?._nodes || []) {
@@ -38,36 +130,18 @@ app.registerExtension({
                     }
                 }
             }
-            // Fall back to the first Gallery Browser in the graph.
             return (app.graph?._nodes || []).find(n => n.comfyClass === "SDCodexGalleryBrowser");
-        };
-
-        const readWidgetStr = (n, name) => {
-            const w = getWidget(n, name);
-            return w ? String(w.value ?? "") : "";
         };
 
         const loadFolderImages = async (folderPath) => {
             const resp = await fetch(
                 `/sdcodex/images?folder_path=${encodeURIComponent(folderPath)}&page=1&limit=100000`
             );
-            if (!resp.ok) {
-                throw new Error((await resp.text()) || "Failed to load images from folder");
-            }
+            if (!resp.ok) throw new Error((await resp.text()) || "Failed to load images from folder");
             const data = await resp.json();
             return data.images || [];
         };
 
-        const setStatus = (text) => {
-            const statusWidget = getWidget(node, "runner_status");
-            if (statusWidget) {
-                statusWidget.value = text;
-                if (statusWidget.inputEl) statusWidget.inputEl.value = text;
-            }
-            if (node.setDirtyCanvas) node.setDirtyCanvas(true, true);
-        };
-
-        // Await completion (success / interrupted / error) of one prompt_id.
         const waitForPrompt = (promptId) => {
             if (!app.api) return;
             return new Promise((resolve) => {
@@ -107,6 +181,8 @@ app.registerExtension({
             }
             running = true;
             stopRequested = false;
+            startBtn.classList.add("running");
+            stopBtn.classList.remove("running");
             try {
                 const browser = findBrowserNode();
                 if (!browser) {
@@ -172,6 +248,8 @@ app.registerExtension({
                 setStatus(`! ${err.message}`);
             } finally {
                 running = false;
+                startBtn.classList.remove("running");
+                stopBtn.classList.remove("running");
             }
         };
 
@@ -187,13 +265,8 @@ app.registerExtension({
             setStatus("■ Stopping…");
         };
 
-        // Buttons + status.
-        node.addWidget("button", "▶ Start", null, () => { runLoop(); });
-        node.addWidget("button", "■ Stop", null, () => { stopLoop(); });
-        node.addWidget("string", "runner_status", "Idle");
-
-        node.min_size = [340, 150];
-        if (node.setSize) node.setSize([380, 170]);
-        else node.size = [380, 170];
+        node.min_size = [340, 120];
+        node.setSize?.([360, 130]);
+        setTimeout(() => node.onResize?.(node.size), 50);
     }
 });

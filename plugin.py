@@ -7,8 +7,10 @@ if plugin_dir not in sys.path:
     sys.path.insert(0, plugin_dir)
 
 from api_gallery import gallery as gallery_bp
+from caption_models import caption_models_bp, init_caption_models
 
 gallery_bp.template_folder = os.path.join(plugin_dir, "templates")
+caption_models_bp.template_folder = os.path.join(plugin_dir, "templates")
 
 @gallery_bp.route("/captioning", endpoint="captioning")
 def captioning():
@@ -24,6 +26,7 @@ def init_plugin(app, db, plugin_info=None):
     """
     if "gallery" not in app.blueprints:
         app.register_blueprint(gallery_bp)
+    init_caption_models(app)
 
     # Install / sync ComfyUI custom nodes into custom-addons folder
     custom_nodes_dirs = [

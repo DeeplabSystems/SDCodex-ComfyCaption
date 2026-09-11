@@ -1,8 +1,8 @@
 {
   "id": "comfy-caption",
   "name": "ComfyUI Captioning",
-  "version": "2.2.2",
-  "description": "Auto-captioning with LLMs/JoyCaption and ComfyUI custom workflow nodes. The gallery now lives in the separate SDCodex Gallery plugin, which reads directly from disk (no database, no save-to-gallery).",
+  "version": "2.3.0",
+  "description": "Auto-captioning with LLMs/JoyCaption and ComfyUI custom workflow nodes. Captioning GGUF models can be downloaded from HuggingFace via the Caption Models settings page.",
   "author": "DeeplabSystems",
   "repository": "https://github.com/DeeplabSystems/SDCodex-ComfyCaption",
   "entrypoint": "plugin:init_plugin",
@@ -13,12 +13,31 @@
       "icon": "fas fa-tags"
     }
   ],
+  "settings": [
+    {
+      "label": "Caption Models",
+      "url": "/caption_models",
+      "icon": "fas fa-headphones-alt"
+    }
+  ],
   "volumes": [
     {
       "env_var": "COMFYUI_CUSTOM_NODES",
       "host_path": "./comfyui/custom_nodes",
       "container_path": "/data/custom_nodes",
       "description": "ComfyUI custom-addons folder (where comfyui-sdcodex nodes will be installed)"
+    },
+    {
+      "env_var": "CAPTION_MODELS",
+      "host_path": "./caption_models",
+      "container_path": "/data/caption_models",
+      "description": "Directory where captioning models (GGUF + mmproj) downloaded from the Caption Models page are stored"
+    },
+    {
+      "env_var": "LMSTUDIO_MODELS",
+      "host_path": "",
+      "container_path": "/data/lmstudio_models",
+      "description": "Read-only mount of your LM Studio models directory (point host_path at your LM Studio models folder) so the app can read those GGUF models"
     }
   ]
 }

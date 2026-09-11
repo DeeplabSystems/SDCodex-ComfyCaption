@@ -42,8 +42,28 @@ The LM Studio API URL is also now **persisted** to browser `localStorage`
 "Caption this Image" button, so it no longer resets to the localhost default on
 every visit.
 
+## Caption Models (settings page)
+**Settings -> Caption Models** lets you download local captioning GGUF models from
+HuggingFace:
+
+- Set a **HuggingFace token** (only needed for gated/private repos) and a
+  **model repo** (default: `nakedlittlezombie/Qwen3-VL-8B-Thinking-heretic`).
+- Choose one of **four presets** (Q4_K_M, Q8_0, F16, BF16); each downloads the
+  GGUF language model **plus its matching `mmproj`** vision-projector file with
+  resumable HTTP (pure-Python, based on the bundled `hfd.sh` approach — no curl
+  / wget / aria2c required inside the container).
+- Files land in the **CAPTION_MODELS** volume (`/data/caption_models`). A Start /
+  Stop progress bar updates live.
+
 ## Required Volumes (Docker)
 - `COMFYUI_CUSTOM_NODES`: ComfyUI custom-addons folder (where `comfyui-sdcodex` nodes are installed).
+- `CAPTION_MODELS`: directory where captioning models downloaded from the Caption Models page are stored.
+- `LMSTUDIO_MODELS`: read-only mount of your **LM Studio models directory** — set
+  the host path to your LM Studio models folder so the app can read those models
+  (e.g. for captioning directly from your existing LM Studio GGUF files).
+  The container path is fixed at `/data/lmstudio_models`.
+
+After changing a volume path, run `update.sh` to rebuild and mount the new volumes.
 
 ## Installation
 Add this repository (`DeeplabSystems/SDCodex-ComfyCaption`) in SDCodex Settings -> Plugins.

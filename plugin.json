@@ -1,7 +1,7 @@
 {
   "id": "comfy-caption",
   "name": "ComfyUI Captioning",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Auto-captioning with LLMs/JoyCaption and ComfyUI custom workflow nodes. Captioning GGUF models can be downloaded from HuggingFace via the Caption Models settings page.",
   "author": "DeeplabSystems",
   "repository": "https://github.com/DeeplabSystems/SDCodex-ComfyCaption",
@@ -31,13 +31,7 @@
       "env_var": "CAPTION_MODELS",
       "host_path": "./caption_models",
       "container_path": "/data/caption_models",
-      "description": "Directory where captioning models (GGUF + mmproj) downloaded from the Caption Models page are stored"
-    },
-    {
-      "env_var": "LMSTUDIO_MODELS",
-      "host_path": "",
-      "container_path": "/data/lmstudio_models",
-      "description": "Read-only mount of your LM Studio models directory (point host_path at your LM Studio models folder) so the app can read those GGUF models"
+      "description": "Directory for captioning models (GGUF + mmproj). Point this at your LM Studio models folder to reuse existing GGUFs — files downloaded from the Caption Models page land here too"
     }
   ]
 }

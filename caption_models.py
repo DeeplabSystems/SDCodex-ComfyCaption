@@ -29,11 +29,14 @@ from flask import Blueprint, jsonify, render_template, request
 def _models_dir():
     """The directory where downloaded caption models are stored.
 
-    Prefers the CAPTION_MODELS volume; then a sibling dir named
-    "caption_models" under the app /data root; finally the plugin dir.
+    Prefers the CAPTION_MODELS volume; then the legacy LMSTUDIO_MODELS dir
+    (v2.3.0 mounted both to the same host path, merged into one in v2.4.0);
+    then a sibling dir named "caption_models" under the app /data root;
+    finally the plugin dir.
     """
     for cand in (
         os.environ.get("CAPTION_MODELS"),
+        os.environ.get("LMSTUDIO_MODELS"),
         os.path.join(os.environ.get("DATA_DIR", "/data"), "caption_models"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "caption_models"),
     ):

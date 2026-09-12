@@ -57,11 +57,14 @@ HuggingFace:
 
 ## Required Volumes (Docker)
 - `COMFYUI_CUSTOM_NODES`: ComfyUI custom-addons folder (where `comfyui-sdcodex` nodes are installed).
-- `CAPTION_MODELS`: directory where captioning models downloaded from the Caption Models page are stored.
-- `LMSTUDIO_MODELS`: read-only mount of your **LM Studio models directory** — set
-  the host path to your LM Studio models folder so the app can read those models
-  (e.g. for captioning directly from your existing LM Studio GGUF files).
-  The container path is fixed at `/data/lmstudio_models`.
+- `CAPTION_MODELS`: directory for captioning models (GGUF + mmproj). Point it at
+  your **LM Studio models folder** to reuse your existing GGUF files — files
+  downloaded from the Caption Models page land here too.
+
+> v2.4.0 merged the old separate `LMSTUDIO_MODELS` (`/data/lmstudio_models`)
+> mount into `CAPTION_MODELS`: one host dir, one mount. If you still have
+> `LMSTUDIO_MODELS` in `.env` / `docker-compose.override.yml` from v2.3.0,
+> reinstall (or update + remove those two lines) and recreate the container.
 
 After changing a volume path, run `update.sh` to rebuild and mount the new volumes.
 
